@@ -1,0 +1,12 @@
+{
+    "ip" : "192.168.10.245",
+    "port" : 16101,
+    "tps" : 10,
+    "proc_time" : 100,
+    "user_count" : 1000,
+    "loop_cnt"  :  10,
+    "update_cnt" : 8,
+    "worker_cnt" : 3,
+    "conn_cnt" : 2 
+
+}
