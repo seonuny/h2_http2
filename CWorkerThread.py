@@ -51,7 +51,7 @@ class CWorker(Thread):
         self.init    = None
         self.user_max= host['user_count']
         self.user_idx= 0
-        self.mdn     = f'010{self.user_idx:03}{self.thdId:04}'
+        self.mdn     = f'0105{self.thdId:03}{self.user_idx:04}'
         self.send_cnt= 0
         self.cv      = cv
         self.cond    = cond
@@ -69,6 +69,7 @@ class CWorker(Thread):
         self.loadDataFromFile()
         self.bRun    = True
         self.location = ""
+        self.parsed_url = ""
         self.workRecv= workRecv
 
     def __del__(self):
@@ -114,7 +115,6 @@ class CWorker(Thread):
             (':scheme', 'http'),
             (':path', f'{path}'),
             ('content-type', 'application/json')
-           #('content-length', str(len(self.create)))
         ]
         return headers
 
@@ -124,102 +124,85 @@ class CWorker(Thread):
             self.idx = 0
         thdId, streamId = self.connThdlst[self.idx].send(self.thdId,headers,body,sendType) 
         self.idx = self.idx + 1
-       #logger.info(f" key:[{thdId}_{streamId}]")
         try:
             self.request_queue.put(f"{thdId}_{streamId}")
+            self.wait()
         except Exception as e:
             None
         return thdId, streamId
 
     def wait(self,timeout=1):
-        for i in range(10):
-            with self.cond:
-               #logger.info(f"idx:{self.thdId:02}-{self.cond}-b")
-                try:
-                    self.cond.wait(timeout)
-                   #logger.info(f"idx:{self.thdId:02}-{self.cond}-a")
-                    break;
-                except Exception as e:
-                    None
-                   #logger.info(f"idx:{self.thdId:02}-{self.cond}-{type(e)}-{e}")
+        with self.cond:
+            try:
+                self.cond.wait(timeout)
+               #logger.info(f"idx:{self.thdId:02}-{self.cond}-a")
+            except Exception as e:
+                logger.info(f"idx:{self.thdId:02}-{self.cond}-{type(e)}-{e}")
+               #None
 
 
 
     def send_create_request(self):
-       #logger.info(f"")
-        self.create = self.ctemp.replace('$MIN$',f'105{self.thdId:03}{self.user_idx:04}').replace('$IP$',f'{self.Name:10}{self.thdId:03}')
-        self.update = self.utemp.replace('$MIN$',f'105{self.thdId:03}{self.user_idx:04}').replace('$IP$',f'{self.Name:10}{self.thdId:03}')
+        self.create = self.ctemp.replace('$MIN$',f'105{self.thdId:03}{self.user_idx:04}').replace('$IP$',f'{self.Name:10}{self.user_idx:03}')
+        self.update = self.utemp.replace('$MIN$',f'105{self.thdId:03}{self.user_idx:04}').replace('$IP$',f'{self.Name:10}{self.user_idx:03}')
 
         headers = self.setHeader(sm_policy_control_path)
 
         thdId , streamId = self.send_data(headers, self.create,'1')
-        self.wait()
         return thdId, streamId
 
-    def send_update_request(self,location):
-       #logger.info(f"")
-    
-        parsed_url = urlparse(location)
-        path = f"{parsed_url.path}/update"
+    def send_update_request(self,a_path):
+
+        path = f"{a_path}/update"
 
         headers = self.setHeader(path)
 
         thdId , streamId = self.send_data(headers,self.update,'2')
-        self.wait()
         return thdId, streamId
     
 
-    def send_delete_request(self,location):
-       #logger.info(f"")
+    def send_delete_request(self,a_path):
     
-        parsed_url = urlparse(location)
-        path = f"{parsed_url.path}/delete"
+        path = f"{a_path}/delete"
 
         headers = self.setHeader(path)
 
         thdId , streamId = self.send_data(headers,None,'3')
-        self.wait()
         return thdId, streamId
 
     def create_process(self):
         thdId = self.thdId
        #logger.info(f"")
-        self.data = None
         Id,streamId = self.send_create_request()
         self.data = None
         try:
             self.data = self.response_queue.get()
+            self.location = self.data.GetLocation()
+            self.parsed_url = urlparse(self.location)
         except Exception as e:
             self.data = None
 
 
-    def update_process(self,i):
+    def update_process(self,i,path):
         thdId = self.thdId
        #logger.info(f"idx:{i}")
-        if self.data is not None:
-            Id, streamId = self.send_update_request(self.data.GetLocation())
-            try:
-                data = self.response_queue.get()
-            except Exception as e:
-                data = None
-        else:
-            None
-    
-    def delete_process(self):
-        thdId = self.thdId
-        if self.data is not None:
-            Id, streamId = self.send_delete_request(self.data.GetLocation())
+        Id, streamId = self.send_update_request(path)
+        try:
+            data = self.response_queue.get()
+        except Exception as e:
             data = None
-            try:
-                data = self.response_queue.get()
-            except Exception as e:
-                data = None
-        else:
-            None
+    
+    def delete_process(self,path):
+        thdId = self.thdId
+        Id, streamId = self.send_delete_request(path)
+        data = None
+        try:
+            data = self.response_queue.get()
+        except Exception as e:
+            data = None
 
     def run(self):
         try:
-           #logger.info(f"")
             loop_cnt = self.loop_cnt
             s_time = time.time()
             self.init =s_time
@@ -234,30 +217,29 @@ class CWorker(Thread):
                 gap_time = int(e_time - s_time)
                 if self.send_cnt > 0 and (self.send_cnt > self.tps or gap_time >= 1):
                     if gap_time < 1:
-                        time.sleep(1-gap_time)
+                        sleep_sec = 1-gap_time
+                        logger.info(f"idx:{self.thdId:02}-tps sleep:{sleep_sec}")
+                        time.sleep(sleep_sec)
                         s_time = e_time
                         self.send_cnt = 0
-               #if loop_cnt % 1000 == 0:
-               #    logger.info(f"while-loop_cnt:{loop_cnt}")
                 if self.loop_cnt != 0:
                     loop_cnt -= 1
                     if loop_cnt == 0:
-                       #logger.info(f"loop_cnt:{loop_cnt} break")
                         self.stop()
                         break
-               #time.sleep(1)
                 if self.user_idx >= self.user_max:
                     self.user_idx = 0
                 self.create_process()
                 self.send_cnt = self.send_cnt + 1
                 for i in range(self.upd_cnt):
-                    self.update_process(i)
+                    self.update_process(i,self.parsed_url.path)
                     self.send_cnt = self.send_cnt + 1
-                self.delete_process()
+                self.delete_process(self.parsed_url.path)
                 self.send_cnt = self.send_cnt + 1
                 self.user_idx = self.user_idx + 1
 
         except KeyboardInterrupt as e:
-            logger.info(f"err:{e},Error on line:{sys.exc_info()[-1].tb_lineno}")
-       #logger.info(f"end")
+            logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
+        except Exception as e:
+            logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
 

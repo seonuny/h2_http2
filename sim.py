@@ -131,19 +131,14 @@ def main(argc,argv):
 
         workerlst = list()
         for i in range(worker_cnt):
-           #request_queue = request_manager[i].Queue()
             workRecv= CWorkerRecv(i,cv=cv,cond=cond[i],request_queue=request_queue[i],response_queue=response_queue[i])
             worker = CWorker(Id=i,Name="worker",workRecv=workRecv,response_map=response_map,request_queue=request_queue[i],response_queue=response_queue[i],connThdlst = connThdlst,cv=cv,cond=cond[i],host=host)
-           #logger.info(f"{worker}")
-           #logger.info(f"{workRecv}")
             workerlst.append((worker,workRecv))
 
         elapsed.SetStart()
 
         for worker in workerlst:
-           #logger.info(f"{worker[0]}.start()")
             worker[0].start()
-           #logger.info(f"{worker[1]}.start()")
             worker[1].start()
 
         tpsCheck = CTPSCheck(elapsed=elapsed,proc_time=proc_time)
@@ -151,10 +146,10 @@ def main(argc,argv):
 
         for worker in workerlst:
             worker[0].join()
-           #logger.info(f"{worker[1]}.stop()")
             worker[1].stop()
-            worker[1].join()
 
+        for worker in workerlst:
+            worker[1].join()
 
         tpsCheck.stop()
 
@@ -164,18 +159,6 @@ def main(argc,argv):
         for connThd in connThdlst:
             connThd.join()
     
-       #for worker in workerlst:
-       #   #worker[0].join()
-       #   #worker[1].stop()
-       #   #logger.info(f"{worker[1]}.join()")
-       #    try:
-       #        signal(SIGALRM, sigAlarm)
-       #        alarm(2)
-       #        worker[1].join()
-       #        alarm(0)
-       #    except ExceptionAlarm as e:
-       #        logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}-{type(worker[1])}")
-       #        return None
     except KeyboardInterrupt as e:
        #logger.info(f"err:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
         logger.info(f"stop [signal:{type(e)}]")

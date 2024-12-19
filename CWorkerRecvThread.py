@@ -62,58 +62,37 @@ class CWorkerRecv(Thread):
                 except EOFError as e:
                     self.bRun = False
                 except queue.Empty as e:
-                   #logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
                     continue
-                   #self.request_queue.task_done()
-               #logger.info(f"key:{key}")
                 if key == None:
-                    if self.bRun == False:
-                        logger.info(f"stop:{self.bRun}")
-                   #logger.info(f"request_queue key is None")
-                    else:
+                    if self.bRun != False:
                         time.sleep(0.01)
                     continue
-                cnt = 0
-                while self.bRun == True and bCrtLoop == True:
-                    if cnt >= 1000:
-                       #logger.info(f"over cnt:{cnt}")
-                        return None
-                    cnt = cnt + 1
-                    bExist = self.cv.existKey(self.thdId,key)
-                    if bExist == True:
-                        data = self.cv.pop(self.thdId,key)
-                        if data is not None:
-                            self.response_queue.put(data)
-                            with self.cond:
-                               #logger.info(f"thd:{self.thdId}-{self.cond}--[{key}]")
-                                self.cond.notify()
-                            bCrtLoop = False
-                           #location = data.GetLocation()
-                           #if location is not None:
-                           #   #logger.info(f"thd:{self.thdId}-key:{key}-location:{location}")
-                        else:
-                            logger.info(f"not data")
-                            return None
-                   #logger.info(f"ret:{bExist}-cnt:{cnt}")
+                bExist = self.cv.existKey(self.thdId,key)
+                if bExist == True:
+                    data = self.cv.pop(self.thdId,key)
+                    if data is not None:
+                        self.response_queue.put(data)
+                        with self.cond:
+                            self.cond.notify()
+                        bCrtLoop = False
                     else:
-                        logger.info(f"response_map not found:key:[{key}]/size:{self.cv.size(self.thdId)}/cnt:{cnt}")
-                   #   #self.printmap()
-                   #    time.sleep(0.01)
+                        logger.info(f"idx:{self.thdId:02}/{key}-not data")
+                        return None
+                else:
+                    logger.info(f"idx:{self.thdId:02}/{key}")
 
-            except EOFError as e:
-                logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
+            except BrokenPipeError as e:
                 self.bRun = False
                 return None
-            except BrokenPipeError as e:
-               #logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
+            except ConnectionResetError as e:
+                self.bRun = False
+                return None
+            except EOFError as e:
                 self.bRun = False
                 return None
             except KeyError as e:
                 logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")
                 time.sleep(0.1)
-                return None
-            except ConnectionResetError as e:
-                self.bRun = False
                 return None
             except AttributeError as e:
                 logger.info(f"Exception:{type(e)}:{e}-Error on line:{sys.exc_info()[-1].tb_lineno}")

@@ -309,18 +309,14 @@ class CCondition:
         self.cv      = [threading.Condition() for _ in range(cnt) ]
 
     def wait(self,idx,timeout=1):
-       #logger.info(" ")
+       #logger.info(f"idx:{idx:02}")
         with self.cv[idx]:
-           #logger.info(f"{idx:02}-wait before")
             self.cv[idx].wait(timeout=timeout)
-           #logger.info(f"{idx:02}-wait after")
 
     def notify(self,idx):
        #logger.info(f"idx:{idx:02}")
         with self.cv[idx]:
-           #logger.info(f"{idx:02}-notify before")
             self.cv[idx].notify()
-           #logger.info(f"{idx:02}-notify after")
 
     def size(self,idx):
        #plogger.info(f"idx:{idx:02}")
@@ -330,16 +326,13 @@ class CCondition:
        #logger.info(f"idx:{idx:02}/[{key}]")
         bExist = key in self.res_map[idx]
         
-       #logger.info(f"idx:{idx:02}/[{key}]:{bExist}:size:{self.size(idx)}:b")
         if bExist == False:
             self.wait(idx,timeout=1)
             bExist = key in self.res_map[idx]
 
-       #logger.info(f"idx:{idx:02}/[{key}]:{bExist}:size:{self.size(idx)}:a")
         return bExist
 
     def get(self,idx,key):
-       #logger.info(f"idx:{idx:02}")
        #logger.info(f"idx:{idx:02}/key:[{key}]")
         d = None
         try:
